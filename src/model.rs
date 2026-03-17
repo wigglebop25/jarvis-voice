@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use std::fs::{File, remove_dir_all, remove_file};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tar::Archive;
 use transcribe_rs::TranscriptionEngine;
 use transcribe_rs::engines::parakeet::{ParakeetEngine, ParakeetModelParams};
@@ -19,18 +19,26 @@ pub async fn load_model(uri: &str, path: &str) -> Result<ParakeetEngine> {
         .map_err(|e| anyhow!(e.to_string()))
         .context("Failed to load model")?;
 
+    println!("Transcription model loaded");
+
     Ok(engine)
 }
 
 async fn ensure_model_exists(uri: &str, path: &str) -> Result<()> {
-    if !PathBuf::from(path).exists() {
-        download_model(uri, path).await?;
-        extract_archive(&PathBuf::from(path)).await?;
+    let archive_name = uri
+        .split('/')
+        .last()
+        .ok_or_else(|| anyhow!("Invalid URI"))?;
+    let archive_path = PathBuf::from(archive_name);
+
+    if !Path::new(path).exists() {
+        download_model(uri, &archive_path).await?;
+        extract_archive(&archive_path).await?;
     } else {
         if !try_load_model(path.into()).await {
             remove_dir_all(path)?;
-            download_model(uri, path).await?;
-            extract_archive(&PathBuf::from(path))
+            download_model(uri, &archive_path).await?;
+            extract_archive(&archive_path)
                 .await
                 .context("Failed to extract archive")?;
         }
@@ -59,7 +67,7 @@ async fn try_load_model(path: PathBuf) -> bool {
     res.is_ok()
 }
 
-async fn download_model(uri: &str, path: &str) -> Result<()> {
+async fn download_model(uri: &str, path: &PathBuf) -> Result<()> {
     let client = Client::new();
     let res = client
         .get(uri)
@@ -67,9 +75,12 @@ async fn download_model(uri: &str, path: &str) -> Result<()> {
         .await
         .context("failed to send request to client")?;
 
+    println!("Model not found, downloading...");
     if !res.status().is_success() {
         bail!("failed to download model: {}", res.status());
     }
+
+    println!("Model downloaded, extracting...");
 
     let mut file = File::create(path).context("failed to create file")?;
 
@@ -79,6 +90,8 @@ async fn download_model(uri: &str, path: &str) -> Result<()> {
         let chunk = item.map_err(|e| anyhow!("Error while downloading chunk: {}", e))?;
         file.write_all(&chunk).context("Failed to write chunk")?;
     }
+
+    println!("Model extracted");
 
     Ok(())
 }
