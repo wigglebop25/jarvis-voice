@@ -1,11 +1,12 @@
 use anyhow::{Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Receiver, Sender, unbounded};
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyTimeoutError};
 use pyo3::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use transcribe_rs::TranscriptionEngine;
 use transcribe_rs::engines::parakeet::ParakeetEngine;
@@ -34,6 +35,7 @@ pub struct Transcriber {
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
     completion_notifier: Arc<(Mutex<bool>, Condvar)>,
+    on_complete_callback: Arc<Mutex<Option<Py<PyAny>>>>,
 }
 
 #[pymethods]
@@ -64,10 +66,12 @@ impl Transcriber {
         let is_transcribing = Arc::new(AtomicBool::new(false));
         let latest_transcript = Arc::new(Mutex::new(String::new()));
         let completion_notifier = Arc::new((Mutex::new(false), Condvar::new()));
+        let on_complete_callback = Arc::new(Mutex::new(None));
 
         let is_transcribing_clone = is_transcribing.clone();
         let latest_transcript_clone = latest_transcript.clone();
         let completion_notifier_clone = completion_notifier.clone();
+        let on_complete_callback_clone = on_complete_callback.clone();
 
         thread::spawn(move || {
             worker_thread(
@@ -75,6 +79,7 @@ impl Transcriber {
                 is_transcribing_clone,
                 latest_transcript_clone,
                 completion_notifier_clone,
+                on_complete_callback_clone,
                 rust_config,
                 uri,
                 path,
@@ -86,6 +91,7 @@ impl Transcriber {
             is_transcribing,
             latest_transcript,
             completion_notifier,
+            on_complete_callback,
         })
     }
 
@@ -113,6 +119,48 @@ impl Transcriber {
     fn get_latest_transcript(&self) -> String {
         self.latest_transcript.lock().unwrap().clone()
     }
+
+    fn register_on_complete(&self, callback: Py<PyAny>) {
+        let mut guard = self.on_complete_callback.lock().unwrap();
+        *guard = Some(callback);
+    }
+
+    #[pyo3(signature = (timeout=None))]
+    fn wait_until_done(&self, timeout: Option<f64>) -> PyResult<bool> {
+        let (lock, cvar) = &*self.completion_notifier;
+        let mut completed = lock.lock().unwrap();
+
+        if *completed {
+            return Ok(true);
+        }
+
+        if let Some(timeout_s) = timeout {
+            let duration = Duration::from_secs_f64(timeout_s);
+            let start = Instant::now();
+            while !*completed {
+                let elapsed = start.elapsed();
+                if elapsed >= duration {
+                    return Err(PyTimeoutError::new_err("Transcription timed out"));
+                }
+                let remaining = duration - elapsed;
+                let (guard, res) = cvar
+                    .wait_timeout(completed, remaining)
+                    .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {}", e)))?;
+                completed = guard;
+                if res.timed_out() && !*completed {
+                    return Err(PyTimeoutError::new_err("Transcription timed out"));
+                }
+            }
+        } else {
+            while !*completed {
+                completed = cvar
+                    .wait(completed)
+                    .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {}", e)))?;
+            }
+        }
+
+        Ok(true)
+    }
 }
 
 impl Drop for Transcriber {
@@ -132,6 +180,7 @@ struct TranscriptionWorker {
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
     completion_notifier: Arc<(Mutex<bool>, Condvar)>,
+    on_complete_callback: Arc<Mutex<Option<Py<PyAny>>>>,
     config: Config,
 
     device: cpal::Device,
@@ -157,6 +206,7 @@ impl TranscriptionWorker {
         is_transcribing: Arc<AtomicBool>,
         latest_transcript: Arc<Mutex<String>>,
         completion_notifier: Arc<(Mutex<bool>, Condvar)>,
+        on_complete_callback: Arc<Mutex<Option<Py<PyAny>>>>,
         config: Config,
         model_uri: String,
         model_path: String,
@@ -191,6 +241,7 @@ impl TranscriptionWorker {
             is_transcribing,
             latest_transcript,
             completion_notifier,
+            on_complete_callback,
             config,
             device,
             stream_config,
@@ -328,6 +379,18 @@ impl TranscriptionWorker {
         self.transcribe_accumulated();
         self.is_transcribing.store(false, Ordering::SeqCst);
 
+        // Invoke callback
+        let transcript = self.latest_transcript.lock().unwrap().clone();
+        let callback_guard = self.on_complete_callback.lock().unwrap();
+        if let Some(callback) = &*callback_guard {
+            let callback = callback;
+            Python::attach(|py| {
+                if let Err(e) = callback.call1(py, (transcript,)) {
+                    eprintln!("Error invoking Python callback: {}", e);
+                }
+            });
+        }
+
         // Notify waiters
         {
             let (lock, cvar) = &*self.completion_notifier;
@@ -393,6 +456,7 @@ fn worker_thread(
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
     completion_notifier: Arc<(Mutex<bool>, Condvar)>,
+    on_complete_callback: Arc<Mutex<Option<Py<PyAny>>>>,
     config: Config,
     model_uri: String,
     model_path: String,
@@ -402,6 +466,7 @@ fn worker_thread(
         is_transcribing,
         latest_transcript,
         completion_notifier,
+        on_complete_callback,
         config,
         model_uri,
         model_path,
