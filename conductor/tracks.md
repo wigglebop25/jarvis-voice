@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Implement robust synchronization API for the Transcriber (blocking wait/callbacks)**
+- [x] **Track: Implement robust synchronization API for the Transcriber (blocking wait/callbacks)**
 *Link: [./tracks/transcriber_sync_20260405/](./tracks/transcriber_sync_20260405/)*
