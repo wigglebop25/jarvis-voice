@@ -1,16 +1,16 @@
 # Implementation Plan: Implement robust synchronization API for the Transcriber
 
-## Phase 1: Rust Internal Synchronization
-- [x] Task: Add synchronization primitives to `Transcriber` and `TranscriptionWorker`.
+## Phase 1: Rust Internal Synchronization [checkpoint: 3d21317]
+- [x] Task: Add synchronization primitives to `Transcriber` and `TranscriptionWorker`. [x] 3d21317
     - [x] **Red Phase**: Write unit tests in Rust for internal signaling (mocking transcription).
     - [x] **Green Phase**: Update structs in `src/transcriber.rs` to include `Arc<(Mutex<bool>, Condvar)>`.
-- [x] Task: Implement notification logic in the transcription worker.
+- [x] Task: Implement notification logic in the transcription worker. [x] 3d21317
     - [x] **Red Phase**: Write tests to verify that the `Condvar` is notified when transcription stops.
     - [x] **Green Phase**: Update `stop_capture()` in `src/transcriber.rs` to notify the `Condvar`.
-- [~] Task: Conductor - User Manual Verification 'Phase 1: Rust Internal Synchronization' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Rust Internal Synchronization' (Protocol in workflow.md)
 
 ## Phase 2: Rust API Implementation
-- [ ] Task: Implement the `wait_until_done` blocking API.
+- [~] Task: Implement the `wait_until_done` blocking API.
     - [ ] **Red Phase**: Write Python tests that call `wait_until_done` and expect it to block/timeout.
     - [ ] **Green Phase**: Implement `wait_until_done` in `src/transcriber.rs` using `cvar.wait_timeout`. Raise `TimeoutError` on timeout.
 - [ ] Task: Implement the `register_on_complete` callback API.
