@@ -1,0 +1,8 @@
+{
+  "track_id": "transcriber_sync_20260405",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-04-05T19:54:00Z",
+  "updated_at": "2026-04-05T19:54:00Z",
+  "description": "Implement robust synchronization API for the Transcriber (blocking wait/callbacks) to replace busy-polling."
+}
