@@ -1,0 +1,21 @@
+# Tech Stack - JARVIS Voice
+
+## Core Languages and Runtimes
+- **Rust (2024 Edition):** Used for performance-critical audio processing, wake word detection, and transcription logic.
+- **Python (>=3.8):** Provides a high-level API and integration layer for the rest of the JARVIS system.
+
+## Integration and Build
+- **PyO3:** Enables seamless Rust-to-Python bindings, allowing Rust code to be called from Python.
+- **Maturin:** The build backend for the project, simplifying the development and distribution of the Rust-Python hybrid.
+
+## Audio and Voice Processing
+- **Wake Word Detection:** `pvporcupine` for high-performance detection of the "Jarvis" wake word.
+- **Transcription:** `transcribe-rs` with Parakeet integration for real-time speech-to-text processing.
+- **Audio I/O:** `cpal` for low-level audio input and output across different platforms.
+- **Resampling:** `rubato` for high-quality audio resampling.
+
+## Concurrency and Performance
+- **Tokio:** An asynchronous runtime for Rust, used for handling multiple tasks and asynchronous operations concurrently.
+
+## Data and Validation
+- **Pydantic:** Used in Python for data validation and settings management.
