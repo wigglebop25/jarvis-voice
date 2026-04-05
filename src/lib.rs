@@ -5,6 +5,9 @@ mod model;
 mod resampler;
 mod transcriber;
 
+#[cfg(test)]
+mod test_sync;
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[pyfunction]

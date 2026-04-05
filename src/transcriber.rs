@@ -4,7 +4,7 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use tokio::runtime::Runtime;
 use transcribe_rs::TranscriptionEngine;
@@ -33,6 +33,7 @@ pub struct Transcriber {
     command_tx: Sender<Command>,
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
+    completion_notifier: Arc<(Mutex<bool>, Condvar)>,
 }
 
 #[pymethods]
@@ -62,15 +63,18 @@ impl Transcriber {
         let (command_tx, command_rx) = unbounded();
         let is_transcribing = Arc::new(AtomicBool::new(false));
         let latest_transcript = Arc::new(Mutex::new(String::new()));
+        let completion_notifier = Arc::new((Mutex::new(false), Condvar::new()));
 
         let is_transcribing_clone = is_transcribing.clone();
         let latest_transcript_clone = latest_transcript.clone();
+        let completion_notifier_clone = completion_notifier.clone();
 
         thread::spawn(move || {
             worker_thread(
                 command_rx,
                 is_transcribing_clone,
                 latest_transcript_clone,
+                completion_notifier_clone,
                 rust_config,
                 uri,
                 path,
@@ -81,6 +85,7 @@ impl Transcriber {
             command_tx,
             is_transcribing,
             latest_transcript,
+            completion_notifier,
         })
     }
 
@@ -126,6 +131,7 @@ struct TranscriptionWorker {
     command_rx: Receiver<Command>,
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
+    completion_notifier: Arc<(Mutex<bool>, Condvar)>,
     config: Config,
 
     device: cpal::Device,
@@ -150,6 +156,7 @@ impl TranscriptionWorker {
         command_rx: Receiver<Command>,
         is_transcribing: Arc<AtomicBool>,
         latest_transcript: Arc<Mutex<String>>,
+        completion_notifier: Arc<(Mutex<bool>, Condvar)>,
         config: Config,
         model_uri: String,
         model_path: String,
@@ -183,6 +190,7 @@ impl TranscriptionWorker {
             command_rx,
             is_transcribing,
             latest_transcript,
+            completion_notifier,
             config,
             device,
             stream_config,
@@ -237,6 +245,13 @@ impl TranscriptionWorker {
         self.is_transcribing.store(true, Ordering::SeqCst);
         self.accumulated_audio.clear();
         self.silence_frames = 0;
+
+        // Reset completion notifier flag
+        {
+            let (lock, _cvar) = &*self.completion_notifier;
+            let mut completed = lock.lock().unwrap();
+            *completed = false;
+        }
 
         if let Ok(mut guard) = self.latest_transcript.lock() {
             guard.clear();
@@ -312,6 +327,14 @@ impl TranscriptionWorker {
 
         self.transcribe_accumulated();
         self.is_transcribing.store(false, Ordering::SeqCst);
+
+        // Notify waiters
+        {
+            let (lock, cvar) = &*self.completion_notifier;
+            let mut completed = lock.lock().unwrap();
+            *completed = true;
+            cvar.notify_all();
+        }
     }
 
     fn process_raw_audio(&mut self, chunk: RawAudio) {
@@ -369,6 +392,7 @@ fn worker_thread(
     command_rx: Receiver<Command>,
     is_transcribing: Arc<AtomicBool>,
     latest_transcript: Arc<Mutex<String>>,
+    completion_notifier: Arc<(Mutex<bool>, Condvar)>,
     config: Config,
     model_uri: String,
     model_path: String,
@@ -377,6 +401,7 @@ fn worker_thread(
         command_rx,
         is_transcribing,
         latest_transcript,
+        completion_notifier,
         config,
         model_uri,
         model_path,

@@ -1,13 +1,13 @@
 # Implementation Plan: Implement robust synchronization API for the Transcriber
 
 ## Phase 1: Rust Internal Synchronization
-- [ ] Task: Add synchronization primitives to `Transcriber` and `TranscriptionWorker`.
-    - [ ] **Red Phase**: Write unit tests in Rust for internal signaling (mocking transcription).
-    - [ ] **Green Phase**: Update structs in `src/transcriber.rs` to include `Arc<(Mutex<bool>, Condvar)>`.
-- [ ] Task: Implement notification logic in the transcription worker.
-    - [ ] **Red Phase**: Write tests to verify that the `Condvar` is notified when transcription stops.
-    - [ ] **Green Phase**: Update `stop_capture()` in `src/transcriber.rs` to notify the `Condvar`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Rust Internal Synchronization' (Protocol in workflow.md)
+- [x] Task: Add synchronization primitives to `Transcriber` and `TranscriptionWorker`.
+    - [x] **Red Phase**: Write unit tests in Rust for internal signaling (mocking transcription).
+    - [x] **Green Phase**: Update structs in `src/transcriber.rs` to include `Arc<(Mutex<bool>, Condvar)>`.
+- [x] Task: Implement notification logic in the transcription worker.
+    - [x] **Red Phase**: Write tests to verify that the `Condvar` is notified when transcription stops.
+    - [x] **Green Phase**: Update `stop_capture()` in `src/transcriber.rs` to notify the `Condvar`.
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Rust Internal Synchronization' (Protocol in workflow.md)
 
 ## Phase 2: Rust API Implementation
 - [ ] Task: Implement the `wait_until_done` blocking API.
