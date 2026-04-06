@@ -17,7 +17,7 @@
 - [x] Task: Create `src/audio/mod.rs`, `src/audio/input.rs`, and `src/audio/resampler.rs`. bdb3657
 - [x] Task: Move `cpal` related logic to `src/audio/input.rs`. 1d5129c
 - [x] Task: Move `rubato` related logic from `src/resampler.rs` to `src/audio/resampler.rs`. b690aee
-- [ ] Task: Refactor `src/audio` modules to use `anyhow` for error handling.
+- [x] Task: Refactor `src/audio` modules to use `anyhow` for error handling. 8c4eb29
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Audio Processing Extraction' (Protocol in workflow.md)
 
 ## Phase 4: Transcription Logic Isolation
