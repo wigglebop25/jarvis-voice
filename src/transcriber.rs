@@ -11,7 +11,7 @@ use transcribe_rs::TranscriptionEngine;
 use transcribe_rs::engines::parakeet::ParakeetEngine;
 
 use crate::config::Config;
-use crate::resampler::AudioResampler;
+use crate::audio::resampler::AudioResampler;
 use crate::audio::input::{AudioInput, RawAudio};
 
 const DEFAULT_MODEL_URI: &str = "https://blob.handy.computer/parakeet-v3-int8.tar.gz";
