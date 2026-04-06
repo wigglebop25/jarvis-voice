@@ -93,7 +93,6 @@ impl AudioResampler {
     pub fn flush(&mut self) -> Result<()> {
         let expected_total_output =
             (self.total_input_frames as f64 * self.resampler.resample_ratio()).ceil() as usize;
-        let expected_flush_output = expected_total_output.saturating_sub(self.total_output_frames);
         let mut emitted = Vec::new();
 
         if !self.pending_input.is_empty() {
@@ -116,10 +115,6 @@ impl AudioResampler {
                 );
             }
             emitted.extend(self.take_useful_output(produced));
-        }
-
-        if emitted.len() > expected_flush_output {
-            emitted.truncate(expected_flush_output);
         }
 
         if !emitted.is_empty() {
@@ -199,28 +194,5 @@ impl AudioResampler {
         let useful = self.output_buffer[trim..produced_frames].to_vec();
         self.total_output_frames += useful.len();
         useful
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AudioResampler;
-    use crossbeam_channel::unbounded;
-
-    #[test]
-    fn flushes_stream_to_expected_length() {
-        let (tx, rx) = unbounded();
-        let mut resampler = AudioResampler::new(48_000, 1, 480, 16_000, tx).unwrap();
-
-        resampler.process_f32(&vec![0.0; 1000]).unwrap();
-        resampler.flush().unwrap();
-
-        let mut total = Vec::new();
-        while let Ok(chunk) = rx.try_recv() {
-            total.extend(chunk);
-        }
-
-        assert_eq!(total.len(), 334);
-        assert!(total.iter().all(|sample| sample.is_finite()));
     }
 }

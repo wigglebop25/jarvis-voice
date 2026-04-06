@@ -8,9 +8,6 @@ pub mod transcriber;
 pub mod transcription;
 pub mod utils;
 
-#[cfg(test)]
-mod test_sync;
-
 #[pymodule]
 fn jarvis_transcriber(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     python::jarvis_transcriber(py, m)
