@@ -1,4 +1,16 @@
 use anyhow::{Result, bail};
+use pyo3::prelude::*;
+use pyo3::exceptions::PyRuntimeError;
+
+pub trait AnyhowError<T> {
+    fn to_py(self) -> PyResult<T>;
+}
+
+impl<T> AnyhowError<T> for Result<T> {
+    fn to_py(self) -> PyResult<T> {
+        self.map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+}
 
 pub fn interleaved_i16_to_mono(samples: &[i16], channels: usize) -> Result<Vec<f32>> {
     if channels == 0 {

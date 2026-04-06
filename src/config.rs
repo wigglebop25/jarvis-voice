@@ -50,8 +50,9 @@ impl Config {
     }
 
     fn validate(&self) -> PyResult<()> {
+        use crate::utils::AnyhowError;
         let core: CoreConfig = (*self).into();
-        core.validate().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        core.validate().to_py()
     }
 }
 
