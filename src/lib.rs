@@ -5,6 +5,7 @@ mod core;
 mod model;
 mod resampler;
 mod transcriber;
+mod utils;
 
 #[cfg(test)]
 mod test_sync;

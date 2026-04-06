@@ -6,6 +6,8 @@ use rubato::{
     WindowFunction, calculate_cutoff,
 };
 
+use crate::utils::{interleaved_f32_to_mono, interleaved_i16_to_mono};
+
 pub struct AudioResampler {
     input_channels: usize,
     chunk_size: usize,
@@ -200,79 +202,10 @@ impl AudioResampler {
     }
 }
 
-fn interleaved_i16_to_mono(samples: &[i16], channels: usize) -> Result<Vec<f32>> {
-    if channels == 0 {
-        bail!("channels must be greater than zero");
-    }
-    if !samples.len().is_multiple_of(channels) {
-        bail!(
-            "expected input sample count to be divisible by {channels} channel(s), got {}",
-            samples.len()
-        );
-    }
-
-    let frames = samples.len() / channels;
-    if channels == 1 {
-        return Ok(samples
-            .iter()
-            .map(|sample| normalize_i16(*sample))
-            .collect());
-    }
-
-    let mut mono = Vec::with_capacity(frames);
-    for frame in samples.chunks_exact(channels) {
-        let sum: f32 = frame.iter().map(|sample| normalize_i16(*sample)).sum();
-        mono.push(sum / channels as f32);
-    }
-
-    Ok(mono)
-}
-
-fn interleaved_f32_to_mono(samples: &[f32], channels: usize) -> Result<Vec<f32>> {
-    if channels == 0 {
-        bail!("channels must be greater than zero");
-    }
-    if !samples.len().is_multiple_of(channels) {
-        bail!(
-            "expected input sample count to be divisible by {channels} channel(s), got {}",
-            samples.len()
-        );
-    }
-
-    let frames = samples.len() / channels;
-    if channels == 1 {
-        return Ok(samples.to_vec());
-    }
-
-    let mut mono = Vec::with_capacity(frames);
-    for frame in samples.chunks_exact(channels) {
-        let sum: f32 = frame.iter().copied().sum();
-        mono.push(sum / channels as f32);
-    }
-
-    Ok(mono)
-}
-
-fn normalize_i16(sample: i16) -> f32 {
-    if sample == i16::MIN {
-        -1.0
-    } else {
-        sample as f32 / i16::MAX as f32
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{AudioResampler, interleaved_i16_to_mono};
+    use super::AudioResampler;
     use crossbeam_channel::unbounded;
-
-    #[test]
-    fn downmixes_interleaved_i16_to_mono() {
-        let mono = interleaved_i16_to_mono(&[i16::MAX, 0, 0, i16::MAX], 2).unwrap();
-        assert_eq!(mono.len(), 2);
-        assert!((mono[0] - 0.5).abs() < 1e-6);
-        assert!((mono[1] - 0.5).abs() < 1e-6);
-    }
 
     #[test]
     fn flushes_stream_to_expected_length() {
