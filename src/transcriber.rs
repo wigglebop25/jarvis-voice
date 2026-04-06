@@ -1,5 +1,4 @@
 use anyhow::{Result, anyhow};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use pyo3::exceptions::{PyRuntimeError, PyTimeoutError};
 use pyo3::prelude::*;
@@ -13,6 +12,7 @@ use transcribe_rs::engines::parakeet::ParakeetEngine;
 
 use crate::config::Config;
 use crate::resampler::AudioResampler;
+use crate::audio::input::{AudioInput, RawAudio};
 
 const DEFAULT_MODEL_URI: &str = "https://blob.handy.computer/parakeet-v3-int8.tar.gz";
 const DEFAULT_MODEL_PATH: &str = "parakeet-tdt-0.6b-v3-int8";
@@ -22,11 +22,6 @@ enum Command {
     Start,
     Stop,
     Shutdown,
-}
-
-enum RawAudio {
-    F32(Vec<f32>),
-    I16(Vec<i16>),
 }
 
 #[pyclass]
@@ -183,16 +178,13 @@ struct TranscriptionWorker {
     on_complete_callback: Arc<Mutex<Option<Py<PyAny>>>>,
     config: Config,
 
-    device: cpal::Device,
-    stream_config: cpal::StreamConfig,
-    sample_format: cpal::SampleFormat,
+    audio_input: AudioInput,
 
     raw_audio_tx: Sender<RawAudio>,
     raw_audio_rx: Receiver<RawAudio>,
     resampled_tx: Sender<Vec<f32>>,
     resampled_rx: Receiver<Vec<f32>>,
 
-    stream: Option<cpal::Stream>,
     resampler: Option<AudioResampler>,
     accumulated_audio: Vec<f32>,
     silence_frames: usize,
@@ -217,17 +209,7 @@ impl TranscriptionWorker {
             .block_on(crate::model::load_model(&model_uri, &model_path))
             .map_err(|e| anyhow!("Failed to load model: {}", e))?;
 
-        let host = cpal::default_host();
-        let device = host
-            .default_input_device()
-            .ok_or_else(|| anyhow!("No input device found"))?;
-
-        let config_cpal = device
-            .default_input_config()
-            .map_err(|e| anyhow!("Failed to get default input config: {}", e))?;
-
-        let stream_config = config_cpal.config();
-        let sample_format = config_cpal.sample_format();
+        let audio_input = AudioInput::new()?;
 
         let (raw_audio_tx, raw_audio_rx) = unbounded();
         let (resampled_tx, resampled_rx) = unbounded();
@@ -243,14 +225,11 @@ impl TranscriptionWorker {
             completion_notifier,
             on_complete_callback,
             config,
-            device,
-            stream_config,
-            sample_format,
+            audio_input,
             raw_audio_tx,
             raw_audio_rx,
             resampled_tx,
             resampled_rx,
-            stream: None,
             resampler: None,
             accumulated_audio: Vec::new(),
             silence_frames: 0,
@@ -310,8 +289,8 @@ impl TranscriptionWorker {
 
         self.resampler = Some(
             AudioResampler::new(
-                self.stream_config.sample_rate as usize,
-                self.stream_config.channels as usize,
+                self.audio_input.stream_config.sample_rate as usize,
+                self.audio_input.stream_config.channels as usize,
                 480, // chunk size
                 TARGET_SAMPLE_RATE,
                 self.resampled_tx.clone(),
@@ -319,55 +298,16 @@ impl TranscriptionWorker {
             .unwrap(),
         );
 
-        let tx = self.raw_audio_tx.clone();
-        let err_fn = |err| eprintln!("an error occurred on stream: {}", err);
-
-        let new_stream = match self.sample_format {
-            cpal::SampleFormat::F32 => self.device.build_input_stream(
-                &self.stream_config,
-                move |data: &[f32], _: &_| {
-                    let _ = tx.send(RawAudio::F32(data.to_vec()));
-                },
-                err_fn,
-                None,
-            ),
-            cpal::SampleFormat::I16 => self.device.build_input_stream(
-                &self.stream_config,
-                move |data: &[i16], _: &_| {
-                    let _ = tx.send(RawAudio::I16(data.to_vec()));
-                },
-                err_fn,
-                None,
-            ),
-            _ => {
-                eprintln!("Unsupported sample format");
-                self.is_active = false;
-                self.is_transcribing.store(false, Ordering::SeqCst);
-                return;
-            }
-        };
-
-        match new_stream {
-            Ok(s) => {
-                if let Err(e) = s.play() {
-                    eprintln!("Failed to play stream: {}", e);
-                    self.is_active = false;
-                    self.is_transcribing.store(false, Ordering::SeqCst);
-                } else {
-                    self.stream = Some(s);
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to build input stream: {}", e);
-                self.is_active = false;
-                self.is_transcribing.store(false, Ordering::SeqCst);
-            }
+        if let Err(e) = self.audio_input.start_stream(self.raw_audio_tx.clone()) {
+            eprintln!("Failed to start audio input stream: {}", e);
+            self.is_active = false;
+            self.is_transcribing.store(false, Ordering::SeqCst);
         }
     }
 
     fn stop_capture(&mut self) {
         self.is_active = false;
-        self.stream = None;
+        self.audio_input.stop_stream();
 
         if let Some(r) = self.resampler.as_mut() {
             let _ = r.flush();
@@ -441,10 +381,10 @@ impl TranscriptionWorker {
         if !self.accumulated_audio.is_empty() {
             if let Ok(result) = self
                 .engine
-                .transcribe_samples(self.accumulated_audio.clone(), None)
-                && let Ok(mut guard) = self.latest_transcript.lock()
-            {
-                *guard = result.text;
+                .transcribe_samples(self.accumulated_audio.clone(), None) {
+                if let Ok(mut guard) = self.latest_transcript.lock() {
+                    *guard = result.text;
+                }
             }
             self.accumulated_audio.clear();
         }

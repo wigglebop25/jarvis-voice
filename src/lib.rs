@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
-pub mod config;
+pub mod audio;
+mod config;
 pub mod core;
 pub mod model;
 pub mod resampler;
