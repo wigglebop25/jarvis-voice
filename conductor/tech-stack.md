@@ -14,6 +14,10 @@
 - **Audio I/O:** `cpal` for low-level audio input and output across different platforms.
 - **Resampling:** `rubato` for high-quality audio resampling.
 
+## Error Handling and Communication
+- **Error Handling:** `anyhow` for standardized and ergonomic error propagation in Rust.
+- **Communication:** `crossbeam-channel` for efficient message passing between threads.
+
 ## Concurrency and Performance
 - **Tokio:** An asynchronous runtime for Rust, used for handling multiple tasks and asynchronous operations concurrently.
 - **Rust Primitives:** `Condvar` and `Mutex` for efficient thread synchronization and event signaling across the Rust-Python boundary.
