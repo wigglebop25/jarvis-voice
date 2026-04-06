@@ -109,40 +109,41 @@ impl Transcriber {
     }
 
     #[pyo3(signature = (timeout=None))]
-    fn wait_until_done(&self, timeout: Option<f64>) -> PyResult<bool> {
-        let (lock, cvar) = &*self.completion_notifier;
-        let mut completed = lock.lock().unwrap();
+    fn wait_until_done(&self, py: Python, timeout: Option<f64>) -> PyResult<bool> {
+        py.detach(|| {
+            let (lock, cvar) = &*self.completion_notifier;
+            let mut completed = lock.lock().unwrap();
 
-        if *completed {
-            return Ok(true);
-        }
+            if *completed {
+                return Ok(true);
+            }
 
-        if let Some(timeout_s) = timeout {
-            let duration = Duration::from_secs_f64(timeout_s);
-            let start = Instant::now();
-            while !*completed {
-                let elapsed = start.elapsed();
-                if elapsed >= duration {
-                    return Err(PyTimeoutError::new_err("Transcription timed out"));
+            if let Some(timeout_s) = timeout {
+                let duration = Duration::from_secs_f64(timeout_s);
+                let start = Instant::now();
+                while !*completed {
+                    let elapsed = start.elapsed();
+                    if elapsed >= duration {
+                        return Err(PyTimeoutError::new_err("Transcription timed out"));
+                    }
+                    let remaining = duration - elapsed;
+                    let (guard, res) = cvar
+                        .wait_timeout(completed, remaining)
+                        .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {:?}", e)))?;
+                    completed = guard;
+                    if res.timed_out() && !*completed {
+                        return Err(PyTimeoutError::new_err("Transcription timed out"));
+                    }
                 }
-                let remaining = duration - elapsed;
-                let (guard, res) = cvar
-                    .wait_timeout(completed, remaining)
-                    .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {}", e)))?;
-                completed = guard;
-                if res.timed_out() && !*completed {
-                    return Err(PyTimeoutError::new_err("Transcription timed out"));
+            } else {
+                while !*completed {
+                    completed = cvar
+                        .wait(completed)
+                        .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {:?}", e)))?;
                 }
             }
-        } else {
-            while !*completed {
-                completed = cvar
-                    .wait(completed)
-                    .map_err(|e| PyRuntimeError::new_err(format!("Condvar wait error: {}", e)))?;
-            }
-        }
-
-        Ok(true)
+            Ok(true)
+        })
     }
 }
 

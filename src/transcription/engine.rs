@@ -182,7 +182,7 @@ impl TranscriptionWorker {
             let callback = callback;
             Python::attach(|py| {
                 if let Err(e) = callback.call1(py, (transcript,)) {
-                    eprintln!("Error invoking Python callback: {}", e);
+                    eprintln!("Error invoking Python callback: {:?}", e);
                 }
             });
         }
