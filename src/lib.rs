@@ -1,11 +1,11 @@
 use pyo3::prelude::*;
 
-mod config;
-mod core;
-mod model;
-mod resampler;
-mod transcriber;
-mod utils;
+pub mod config;
+pub mod core;
+pub mod model;
+pub mod resampler;
+pub mod transcriber;
+pub mod utils;
 
 #[cfg(test)]
 mod test_sync;
