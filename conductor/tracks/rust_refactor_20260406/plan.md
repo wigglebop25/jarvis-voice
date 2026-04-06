@@ -24,7 +24,7 @@
 - [x] Task: Create `src/transcription/mod.rs` and `src/transcription/engine.rs`. ae3af90
 - [x] Task: Move logic from `src/transcriber.rs` and `src/model.rs` into the `src/transcription` module. ae3af90
 - [x] Task: Standardize transcription error handling with `anyhow`. ae3af90
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Transcription Logic Isolation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Transcription Logic Isolation' (Protocol in workflow.md) b62df9d
 
 ## Phase 5: PyO3 Bindings Separation
 - [ ] Task: Create `src/python/mod.rs` or `src/ffi/mod.rs` for PyO3 bindings.
