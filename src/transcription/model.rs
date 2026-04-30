@@ -27,7 +27,7 @@ pub async fn load_model(uri: &str, path: &str) -> Result<ParakeetEngine> {
 async fn ensure_model_exists(uri: &str, path: &str) -> Result<()> {
     let archive_name = uri
         .split('/')
-        .last()
+        .next_back()
         .ok_or_else(|| anyhow!("Invalid URI"))?;
     let archive_path = PathBuf::from(archive_name);
 

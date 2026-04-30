@@ -16,7 +16,7 @@ pub fn interleaved_i16_to_mono(samples: &[i16], channels: usize) -> Result<Vec<f
     if channels == 0 {
         bail!("channels must be greater than zero");
     }
-    if samples.len() % channels != 0 {
+    if !samples.len().is_multiple_of(channels) {
         bail!(
             "expected input sample count to be divisible by {channels} channel(s), got {}",
             samples.len()
@@ -44,7 +44,7 @@ pub fn interleaved_f32_to_mono(samples: &[f32], channels: usize) -> Result<Vec<f
     if channels == 0 {
         bail!("channels must be greater than zero");
     }
-    if samples.len() % channels != 0 {
+    if !samples.len().is_multiple_of(channels) {
         bail!(
             "expected input sample count to be divisible by {channels} channel(s), got {}",
             samples.len()

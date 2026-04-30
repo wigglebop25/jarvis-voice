@@ -12,7 +12,7 @@ use crate::transcription::engine::{Command, worker_thread};
 const DEFAULT_MODEL_URI: &str = "https://blob.handy.computer/parakeet-v3-int8.tar.gz";
 const DEFAULT_MODEL_PATH: &str = "parakeet-tdt-0.6b-v3-int8";
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct Transcriber {
     command_tx: Sender<Command>,
     is_transcribing: Arc<AtomicBool>,
