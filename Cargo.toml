@@ -8,6 +8,12 @@ edition = "2024"
 name = "jarvis_transcriber"
 crate-type = ["cdylib", "rlib"]
 
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
 [dependencies]
 anyhow = "1.0.102"
 audioadapter-buffers = "2.0"

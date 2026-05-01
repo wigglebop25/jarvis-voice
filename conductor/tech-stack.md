@@ -11,7 +11,8 @@
 ## Audio and Voice Processing
 - **Wake Word Detection:** `pvporcupine` for high-performance detection of the "Jarvis" wake word.
 - **Transcription:** `transcribe-rs` with Parakeet integration for real-time speech-to-text processing.
-- **Audio I/O:** `cpal` for low-level audio input and output across different platforms.
+- **Audio I/O (Rust):** `cpal` for low-level audio input and output across different platforms.
+- **Audio I/O (Python):** `sounddevice` for microphone capture during wake word detection. Ships pre-built wheels with bundled PortAudio.
 - **Resampling:** `rubato` for high-quality audio resampling.
 
 ## Error Handling and Communication

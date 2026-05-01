@@ -6,7 +6,7 @@ import time
 def test_listener_uses_wait_until_done():
     # Mock resources to avoid real audio/porcupine init
     with patch('pvporcupine.create') as mock_porcupine, \
-         patch('pyaudio.PyAudio') as mock_pyaudio, \
+         patch('sounddevice.RawInputStream') as mock_raw_stream, \
          patch('jarvis_voice.jarvis_transcriber.default') as mock_transcriber_default:
 
         mock_handle = MagicMock()

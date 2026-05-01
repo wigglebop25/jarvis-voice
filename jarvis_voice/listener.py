@@ -3,7 +3,7 @@ import struct
 from typing import Union
 
 import pvporcupine
-import pyaudio
+import sounddevice as sd
 
 from . import jarvis_transcriber
 
@@ -21,7 +21,6 @@ class Listener:
         self.wake_words = [wake_words] if isinstance(wake_words, str) else wake_words
         self.transcriber = jarvis_transcriber.default()
         self.handle = None
-        self.pa = None
         self.audio_stream = None
         self._setup_resources()
 
@@ -30,18 +29,17 @@ class Listener:
             raise ValueError("Error: PORCUPINE_KEY not found in environment.")
 
         self.handle = pvporcupine.create(access_key=self.access_key, keywords=self.wake_words)
-        self.pa = pyaudio.PyAudio()
-        self.audio_stream = self.pa.open(
-            rate=self.handle.sample_rate,
+        self.audio_stream = sd.RawInputStream(
+            samplerate=self.handle.sample_rate,
             channels=1,
-            format=pyaudio.paInt16,
-            input=True,
-            frames_per_buffer=self.handle.frame_length
+            dtype='int16',
+            blocksize=self.handle.frame_length,
         )
+        self.audio_stream.start()
 
     def _get_next_audio_frame(self):
         try:
-            pcm = self.audio_stream.read(self.handle.frame_length, exception_on_overflow=False)
+            pcm, overflowed = self.audio_stream.read(self.handle.frame_length)
             return struct.unpack_from("h" * self.handle.frame_length, pcm)
         except Exception as e:
             print(f"Audio read error: {e}")
@@ -77,12 +75,9 @@ class Listener:
 
     def stop(self):
         if self.audio_stream:
-            self.audio_stream.stop_stream()
+            self.audio_stream.stop()
             self.audio_stream.close()
             self.audio_stream = None
-        if self.pa:
-            self.pa.terminate()
-            self.pa = None
         if self.handle:
             self.handle.delete()
             self.handle = None

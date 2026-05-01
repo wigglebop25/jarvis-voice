@@ -1,8 +1,8 @@
 import os
-import time
-import pvporcupine
-import pyaudio
 import struct
+
+import pvporcupine
+import sounddevice as sd
 from dotenv import load_dotenv
 
 try:
@@ -14,7 +14,7 @@ load_dotenv()
 
 def get_next_audio_frame(stream, frame_length):
     try:
-        pcm = stream.read(frame_length, exception_on_overflow=False)
+        pcm, overflowed = stream.read(frame_length)
         return struct.unpack_from("h" * frame_length, pcm)
     except Exception as e:
         print(f"Audio read error: {e}")
@@ -34,13 +34,13 @@ def main():
     # Initialize Porcupine for wake word detection
     handle = pvporcupine.create(access_key=access_key, keywords=['jarvis'])
     
-    pa = pyaudio.PyAudio()
-    audio_stream = pa.open(
-        rate=handle.sample_rate,
+    audio_stream = sd.RawInputStream(
+        samplerate=handle.sample_rate,
         channels=1,
-        format=pyaudio.paInt16,
-        input=True,
-        frames_per_buffer=handle.frame_length)
+        dtype='int16',
+        blocksize=handle.frame_length,
+    )
+    audio_stream.start()
 
     print("--- JARVIS Voice System Active ---")
     print("Say 'Jarvis' to start transcribing.")
@@ -74,9 +74,8 @@ def main():
     except KeyboardInterrupt:
         print("\nStopping...")
     finally:
-        audio_stream.stop_stream()
+        audio_stream.stop()
         audio_stream.close()
-        pa.terminate()
         handle.delete()
 
 if __name__ == '__main__':

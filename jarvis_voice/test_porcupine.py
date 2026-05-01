@@ -1,7 +1,7 @@
 from os import getenv
 
 import struct
-import pyaudio
+import sounddevice as sd
 import pvporcupine
 from dotenv import load_dotenv
 
@@ -13,7 +13,7 @@ except ImportError:
 load_dotenv()
 
 def get_next_audio_frame(stream, frame_length):
-    pcm = stream.read(frame_length)
+    pcm, overflowed = stream.read(frame_length)
     return struct.unpack_from("h" * frame_length, pcm)
 
 if __name__ == '__main__':
@@ -23,21 +23,23 @@ if __name__ == '__main__':
 
     handle = pvporcupine.create(access_key=access_key, keywords=['jarvis'])
     
-    pa = pyaudio.PyAudio()
-    audio_stream = pa.open(
-        rate=handle.sample_rate,
+    audio_stream = sd.RawInputStream(
+        samplerate=handle.sample_rate,
         channels=1,
-        format=pyaudio.paInt16,
-        input=True,
-        frames_per_buffer=handle.frame_length)
+        dtype='int16',
+        blocksize=handle.frame_length,
+    )
+    audio_stream.start()
 
     print("Listening...")
-    while True:
-        audio_frame = get_next_audio_frame(audio_stream, handle.frame_length)
-        keyword_index = handle.process(audio_frame)
-        if keyword_index == 0:
-            print('Jarvis detected')
-            audio_stream.close()
-            pa.terminate()
-            handle.delete()
-            break
+    try:
+        while True:
+            audio_frame = get_next_audio_frame(audio_stream, handle.frame_length)
+            keyword_index = handle.process(audio_frame)
+            if keyword_index == 0:
+                print('Jarvis detected')
+                break
+    finally:
+        audio_stream.stop()
+        audio_stream.close()
+        handle.delete()
